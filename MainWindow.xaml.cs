@@ -27,11 +27,16 @@ namespace DotNetJsonGraph
             }
 
             var generate = new Generate();
-            List<Item> items = generate.Items;
+            List<Item> items = generate.GetItems;
+            List<Node> nodes = generate.GetNodes;
 
-            using FileStream createStream = File.Create($"{appDirectory}/data/items.json");
-            await JsonSerializer.SerializeAsync(createStream, items, new JsonSerializerOptions { WriteIndented=true});
-            await createStream.DisposeAsync();
+            using FileStream itemsStream = File.Create($"{appDirectory}/data/items.json");
+            await JsonSerializer.SerializeAsync(itemsStream, items, new JsonSerializerOptions { WriteIndented=true});
+            await itemsStream.DisposeAsync();
+
+            using FileStream nodeStream = File.Create($"{appDirectory}/data/nodes.json");
+            await JsonSerializer.SerializeAsync(nodeStream, nodes, new JsonSerializerOptions { WriteIndented=true});
+            await nodeStream.DisposeAsync();
 
         }
     }
