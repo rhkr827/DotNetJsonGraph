@@ -1,0 +1,70 @@
+name: .NET Framework 4.8.1 Build and Release (Visual Studio 2022)
+
+on:
+  push:
+    tags:
+      - 'v*' # v로 시작하는 태그에서만 실행
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # 1. Git 리포지토리 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. 최신 태그 가져오기
+      - name: Get last tag
+        id: get_tag
+        run: |
+          echo "last_tag=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+
+      # 3. 버전 세팅
+      - name: Set version
+        id: set_version
+        run: |
+          version=${{ env.last_tag }}
+          echo "Version: $version"
+          echo "version=$version" >> $GITHUB_ENV
+
+      # 4. MSBuild 및 VSTest 경로를 PATH에 추가
+      - name: Add MSBuild and VSTest to PATH
+        run: |
+          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin" # MSBuild 경로 추가
+          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestPlatform" # VSTest 경로 추가
+          echo "MSBuild and VSTest paths added to PATH"
+
+      # 5. MSBuild로 빌드 (.NET Framework 4.8.1)
+      - name: Build with MSBuild
+        run: |
+          msbuild YourSolution.sln /p:Configuration=Release /p:TargetFrameworkVersion=v4.8.1
+
+      # 6. NUnit 테스트 실행 (.NET Framework)
+      - name: Run Unit Tests with VSTest
+        run: |
+          vstest.console.exe path\to\your\test.dll /Platform:x64
+
+      # 7. 빌드 결과 압축 (ZIP 생성)
+      - name: Compress build artifacts
+        run: |
+          powershell Compress-Archive -Path .\bin\Release\* -DestinationPath build_${{ env.version }}.zip
+          echo "artifact=build_${{ env.version }}.zip" >> $GITHUB_ENV
+
+      # 8. Git 커밋 정보 가져오기
+      - name: Get commit info
+        id: commit_info
+        run: |
+          echo "commit_message=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      # 9. GitHub Release 생성 및 파일 업로드
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.artifact }}
+          body: |
+            Commit Message: ${{ env.commit_message }}
+            Commit Hash: ${{ env.commit_hash }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
