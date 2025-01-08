@@ -20,47 +20,20 @@ jobs:
         run: |
           echo "last_tag=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
 
-      # 3. 버전 세팅
-      - name: Set version
-        id: set_version
+      # 3. 현재 태그 가져오기
+      - name: Get current tag
+        id: get_current_tag
         run: |
-          version=${{ env.last_tag }}
-          echo "Version: $version"
-          echo "version=$version" >> $GITHUB_ENV
+          echo "current_tag=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      # 4. MSBuild 및 VSTest 경로를 PATH에 추가
-      - name: Add MSBuild and VSTest to PATH
+      # 4. 커밋 메시지 가져오기 (이전 태그부터 현재 태그까지)
+      - name: Get commits from last tag to current tag
+        id: get_commits
         run: |
-          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin" # MSBuild 경로 추가
-          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestPlatform" # VSTest 경로 추가
-          echo "MSBuild and VSTest paths added to PATH"
+          commits=$(git log ${{ env.last_tag }}..${{ env.current_tag }} --pretty=format:"* %s")
+          echo "commits=$commits" >> $GITHUB_ENV
 
-      # 5. MSBuild로 빌드 (.NET Framework 4.8.1)
-      - name: Build with MSBuild
-        run: |
-          msbuild YourSolution.sln /p:Configuration=Release /p:TargetFrameworkVersion=v4.8.1
-
-      # 6. NUnit 테스트 실행 (.NET Framework)
-      - name: Run Unit Tests with VSTest
-        run: |
-          vstest.console.exe path\to\your\test.dll /Platform:x64
-
-      # 7. 빌드 결과 압축 (ZIP 생성)
-      - name: Compress build artifacts
-        run: |
-          powershell Compress-Archive -Path .\bin\Release\* -DestinationPath build_${{ env.version }}.zip
-          echo "artifact=build_${{ env.version }}.zip" >> $GITHUB_ENV
-
-      # 8. Git 커밋 및 PR 정보 가져오기
-      - name: Get commit and PR info
-        id: pr_info
-        run: |
-          echo "commit_message=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
-          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 9. Pull Request 메시지 가져오기
+      # 5. PR 메시지 가져오기
       - name: Get PR message
         id: get_pr_message
         run: |
@@ -69,14 +42,47 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 10. GitHub Release 생성 및 파일 업로드
+      # 6. 버전 세팅
+      - name: Set version
+        id: set_version
+        run: |
+          version=${{ env.current_tag }}
+          echo "Version: $version"
+          echo "version=$version" >> $GITHUB_ENV
+
+      # 7. MSBuild 및 VSTest 경로를 PATH에 추가
+      - name: Add MSBuild and VSTest to PATH
+        run: |
+          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin" # MSBuild 경로 추가
+          echo "##[add-path]C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TestPlatform" # VSTest 경로 추가
+          echo "MSBuild and VSTest paths added to PATH"
+
+      # 8. MSBuild로 빌드 (.NET Framework 4.8.1)
+      - name: Build with MSBuild
+        run: |
+          msbuild YourSolution.sln /p:Configuration=Release /p:TargetFrameworkVersion=v4.8.1
+
+      # 9. NUnit 테스트 실행 (.NET Framework)
+      - name: Run Unit Tests with VSTest
+        run: |
+          vstest.console.exe path\to\your\test.dll /Platform:x64
+
+      # 10. 빌드 결과 압축 (ZIP 생성)
+      - name: Compress build artifacts
+        run: |
+          powershell Compress-Archive -Path .\bin\Release\* -DestinationPath build_${{ env.version }}.zip
+          echo "artifact=build_${{ env.version }}.zip" >> $GITHUB_ENV
+
+      # 11. GitHub Release 생성 및 파일 업로드
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.artifact }}
           body: |
-            Commit Message: ${{ env.commit_message }}
-            Commit Hash: ${{ env.commit_hash }}
-            PR Message: ${{ env.pr_message }}
+            **Commit Messages:**
+            ${{ env.commits }}
+
+            **Pull Request Message:**
+            ${{ env.pr_message }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
