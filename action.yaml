@@ -51,14 +51,25 @@ jobs:
           powershell Compress-Archive -Path .\bin\Release\* -DestinationPath build_${{ env.version }}.zip
           echo "artifact=build_${{ env.version }}.zip" >> $GITHUB_ENV
 
-      # 8. Git 커밋 정보 가져오기
-      - name: Get commit info
-        id: commit_info
+      # 8. Git 커밋 및 PR 정보 가져오기
+      - name: Get commit and PR info
+        id: pr_info
         run: |
           echo "commit_message=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 9. GitHub Release 생성 및 파일 업로드
+      # 9. Pull Request 메시지 가져오기
+      - name: Get PR message
+        id: get_pr_message
+        run: |
+          pr_message=$(gh pr view ${{ github.event.pull_request.number }} --json body --jq ".body")
+          echo "pr_message=$pr_message" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 10. GitHub Release 생성 및 파일 업로드
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -66,5 +77,6 @@ jobs:
           body: |
             Commit Message: ${{ env.commit_message }}
             Commit Hash: ${{ env.commit_hash }}
+            PR Message: ${{ env.pr_message }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
